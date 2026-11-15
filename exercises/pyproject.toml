@@ -19,8 +19,10 @@ line-length = 79
 select = ["ALL"]
 
 ignore = [
-  "T201",   # Allow print statements
   "CPY001", # Allow missing copyright notice
+  "S101",   # Allow assert statements
+  "T201",   # Allow print statements
+  "T203",  # Allow pprint statements
 ]
 
 [tool.ruff.lint.pydocstyle]
@@ -31,3 +33,6 @@ project-includes = [
     "**/*.py*",
     "**/*.ipynb",
 ]
+
+[tool.pyrefly.errors]
+reveal-type = false
