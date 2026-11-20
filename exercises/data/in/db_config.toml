@@ -1,0 +1,4 @@
+# File with dummy DB config for illustration purposes
+[db]
+host = "localhost"
+timeout = 30

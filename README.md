@@ -301,13 +301,13 @@ When splitting text containing emojis, etc. the usual functions to split into ch
 
 Split the text `"Hello 🇪🇸!"` by perceived characters.
 
-## `bytearray.take_bytes()`
+### `bytearray.take_bytes()`
 
 The new method `bytearray.take_bytes()` removes the number of given bytes from the front of the buffer and returns it without making a copy.
 
 Familiarize yourself with it using the bytearray: `b"HTTP/1.1 200 OK\r\nRest of the request"`.
 
-## The `^` operator `collections.Counter`
+### The `^` operator `collections.Counter`
 
 The `^` in `collections.Counter` returns the symmetric difference between two counters. That is:
 
@@ -315,11 +315,11 @@ Create a `Counter(nostra=3, frutti_di_mare=1)` and a `Counter(nostra=1, frutti_d
 
 Note that `frutti_di_mare` won't be reported in the results because its count is the same on both.
 
-## ISO date shorthand
+### ISO date shorthand
 
 The `datetime.strptime()` method understands the `%F` directive for ISO dates to parse dates in format `2026-10-12`.
 
-## Structural pattern matching now supports positive sign
+### Structural pattern matching now supports positive sign
 
 Define a function `classify(delta)` which uses structural pattern matching to report:
 - up when receives 1
@@ -328,7 +328,7 @@ Define a function `classify(delta)` which uses structural pattern matching to re
 
 Within the function, use `+1`, `-1` and `0` in the cases of the pattern matching.
 
-## New behavior for functions using `@contextmanager` in generators
+### New behavior for functions using `@contextmanager` in generators
 
 In Python 3.14, using `@contextmanager` with generators was permitted but the context closed as soon as the generator object was created (even before the loop even started). Now it works correctly in Python 3.15.
 
@@ -345,7 +345,7 @@ Compare the behavior of both programs in Python 3.14 and 3.15.
 
 HINT: use `uv run --python 3.14 python <program>.py`
 
-## Looking to upgrade
+### Looking to upgrade
 
 If you're planning to upgrade and your project uses `uv` you can use the `--isolated` flag and `-W error::DeprecationWarning` to get a test errors instead of warnings.
 
@@ -358,8 +358,145 @@ uv run --isoalated --python 3.15 \
 
 
 ## 013: Understanding sentinel values in Python
-> https://realpython.com/python315-sentinel-values/
 
+A sentinel value is a value that an algorithm treats as a signal rather than data. It marks a condition, such as "end of list" or "nothing was passed".
+
+A sentinel is a marker that your code branches on, and it doesn't carry any information about the data you're processing.
+
+For example, the value `-1` that you get when you're searching for a character on a string and it's not found:
+
+```python
+"Hello, world!".find("z") # -> -1: it's a marker, not data
+```
+
+One of the essential traits of the sentinel value is that it should stay distinct from every legitimate value your data can take, so that you can do:
+
+![Sentinel processing loop](diagrams/sentinel_processing_loop.png)
+
+A common example of sentinels is using `None` for optional arguments, but it brings some limitations when `None` is a legitimate value that should be treated and processed as data.
+
+Python 3.15 introduced a sentinel built-in type:
+
+```python
+sentinel(name: str, /, *, repr=None)
+```
+
+- `name`: required, positional-only, and must be a str.
+- `repr`: optional, keyword-only, and defaults to `None`, which displays the sentinel name as the repr behavior.
+
+By convention, you assign the sentine to a variable whose name matches the string passed:
+
+```python
+MISSING = sentinel("MISSING")
+print(MISSING) # -> MISSING
+```
+
+When the bare name might be unclear in context, you can use the `repr` argument:
+
+```python
+UNSET = sentinel("UNSET", repr="<unset>")
+print(UNSET) # -> <unset>
+```
+
+A sentinel instance is truthy, hashable (you can use it as a dict key or member set), and equal only to itself.
+
+Additionally, a sentinel whose name matches the string value passed as instantiation time is safe againsts `copy`, `deepcopy`, and `pickle` operations.
+
+
+1. Define a sentinel instance `MISSING` and print its contents.
+2. Define sentinel instance `UNSET` with a custom `repr` "<unset>" and print its content.
+3. Define a sentinel instance `STOP` and compare it with other sentinel and with itself. What operator would you use for comparing two sentinels?
+4. Print the type of a sentinel and compare the types of two sentinels, using `type`. Compare two sentinel instance with `sentinel` using `isinstance()`.
+5. Suppose your Python app keeps its db settings in a TOML file:
+
+    ```toml
+    [db]
+    host = "localhost"
+    timeout = 30
+    ```
+
+    Now, your app defines a `get_setting(config, path, default)` that reads a dotted path like `"db.timeout"` and returns the corresponding value from the config.
+
+    When the path doesn't exist, callers who don't pass a default value should get a `KeyError` exception, and callers who do pass one should get it back.
+
+    Test the function with the following data and the toml config described above:
+
+    ```python
+    get_setting(config, "db.timeout") # -> 30
+    get_setting(config, "db.port", default=5432) # -> 5432
+    get_setting(config, "db.port") # -> KeyError: "db.port"
+    ```
+
+    HINT: you can get a dict out of a TOML file with the `tomllib` module using:
+
+    ```python
+    with open("settings.toml", mode="rb") as file:
+        config = tomllib.load(file)
+    ```
+
+    Implement `get_setting` using a sentinel `NO_DEFAULT`. Check its behavior with the examples above. Also, use `inspect.signature` to print the signature of the function and confirm how clear it is.
+
+    HINT: to type hint a sentinel, you use the sentinel instance, as in str | int | `NO_DEFAULT`.
+
+6. Validate that a sentinel whose name matches the str you use to instantiate it is safe against `copy`, `deepcopy`, and `pickle` operations by working on the following example:
+
+    You're building a staff directory for your company, where every employee maintains their own profile page. To keep edits small and avoid overwiting unchanged data, the edit form sends back only the fields the employee edited.
+
+    A field that arrives as `None` means the employee deliberately cleared it, for example, to delete the `bio` field, the employee intends to prevent sharing their bio publicly. A field that is not sent means it wasn't changed. Therefore, `None` carries real meaning:
+    - `None`: user cleared the existing value
+    - not sent: user didn't edit the field
+
+    Define a function `parse_patch(form)` that returns the dictionary with keys `name`, `bio`, `email` and the values found in the form.
+
+    Then, define another function `apply_patch(profile, patch)` which returns the updated profile for the user after applying the patch. That is, `profile` represents the current contents of the user's profile in the db, and `patch` what the user has edited/cleared on-screen.
+
+    The app should be behave as follows:
+
+    ```python
+    profile = {
+        "name": "J. Doe",
+        "bio": "Data Scientist",
+        "email": "jane@example.com",
+    }
+
+    patch = parse_patch({"name": "jane", "bio": None}) 
+    # {
+    #   "name": "jane",   # -> edited
+    #   "bio": None,      # -> has been cleared
+    #   "email": MISSING, # -> not sent
+    # }
+
+    apply_patch(profile, patch)
+    # {
+    #   "name": "jane",
+    #   "bio": None,
+    #   "email": "jane@example.com",   
+    # }
+    ```
+
+    Then, use `deepcopy` to copy the result of invoking `parse_patch()` and validate that:
+
+    ```python
+    assert deepcopy(patch)["email"] is MISSING`
+    ```
+
+    Similarly, using `pickle` confirm that:
+
+    ```python
+    assert pickle.loads(pickle.dumps(patch))["email"] is MISSING
+    ```
+
+7. Practice how you can use a sentinel to stop a loop without collisions by implementing the following scenario:
+
+You have a producer thread that hands you one word at a time for individual processing. You don't have control over the words that come in, so any string you pick as the stream terminator, or sentinel, can also arrive as real data.
+
+Suppose that it is agreed that the string `"done"` will be used as the sentinel.
+
+In practice, the producer will send words one by one and then appends the sentinel to close the stream.
+
+Start by creating the producer as a generator function that sends the words "ready", "done", "pending" one at a time (HINT: use `yield`). Once the words have been sent, it sends the sentinel.
+
+Then, create the snippet that iterates over the producer's stream printing the words received until the sentinel is received.
 
 ## 014: Hello, t-strings
 > https://realpython.com/python-t-strings/
